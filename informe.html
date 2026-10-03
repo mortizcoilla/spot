@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pricing dinámico del mercado spot eléctrico chileno — SEN 2020-2026</title>
+<meta name="description" content="Visualización interactiva del Sistema Eléctrico Nacional de Chile: costo marginal, vertimiento, blackout 2025 y comparativa internacional." />
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://d3js.org/topojson.v3.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: #131a2c;
+    --panel2: #1a2238;
+    --border: #2a3552;
+    --text: #e6ecf5;
+    --muted: #8a9bbf;
+    --accent: #4ea1ff;
+    --accent2: #b18cff;
+    --green: #4ade80;
+    --orange: #ff8a4c;
+    --red: #ff6b6b;
+    --yellow: #ffd54a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .container { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+  header.hero { padding: 60px 0 40px 0; background: radial-gradient(ellipse at top, #1a2240 0%, #0a0e1a 70%); border-bottom: 1px solid var(--border); }
+  .hero-eyebrow { display: inline-block; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); padding: 4px 10px; border: 1px solid var(--accent); border-radius: 999px; margin-bottom: 16px; }
+  h1 { font-size: 38px; line-height: 1.1; margin: 0 0 12px 0; letter-spacing: -0.5px; color: #fff; }
+  .hero-sub { font-size: 17px; color: var(--muted); max-width: 720px; margin: 0 0 32px 0; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 28px; }
+  @media (max-width: 800px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } h1 { font-size: 28px; } }
+  .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .kpi .value { font-size: 26px; font-weight: 700; color: #fff; line-height: 1.1; }
+  .kpi .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .kpi.warn .value { color: var(--orange); }
+  .kpi.green .value { color: var(--green); }
+  .kpi.purple .value { color: var(--accent2); }
+  .kpi.alert .value { color: var(--red); }
+  section { padding: 48px 0; border-bottom: 1px solid var(--border); }
+  h2 { font-size: 24px; color: #fff; margin: 0 0 8px 0; letter-spacing: -0.3px; }
+  h3 { font-size: 16px; color: #fff; margin: 24px 0 8px 0; }
+  .section-lead { font-size: 15px; color: var(--muted); max-width: 820px; margin: 0 0 28px 0; }
+  .chart-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin-bottom: 18px; }
+  .chart-card h3 { margin: 0 0 4px 0; }
+  .chart-card .lead { font-size: 13px; color: var(--muted); margin: 0 0 14px 0; }
+  .chart-svg { width: 100%; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
+  .axis text { fill: var(--muted); font-size: 11px; }
+  .axis line, .axis path { stroke: #2a3552; }
+  .grid line { stroke: rgba(255,255,255,0.04); }
+  .grid path { stroke: none; }
+  .tooltip { position: absolute; pointer-events: none; background: rgba(20, 26, 44, 0.96); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #fff; opacity: 0; transition: opacity 0.15s; max-width: 280px; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 14px 0; }
+  .controls label { font-size: 12px; color: var(--muted); margin-right: 4px; }
+  .controls select, .controls button { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  .controls select:hover, .controls button:hover { border-color: var(--accent); }
+  .controls button.active { background: var(--accent); color: #001226; border-color: var(--accent); font-weight: 600; }
+  .split { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+  @media (max-width: 1000px) { .split { grid-template-columns: 1fr; } }
+  .insight-list { list-style: none; padding: 0; margin: 14px 0 0 0; }
+  .insight-list li { background: var(--panel2); border-left: 3px solid var(--accent); padding: 12px 16px; margin-bottom: 8px; border-radius: 4px; font-size: 13.5px; color: #c9d6ee; }
+  .insight-list li strong { color: #fff; }
+  .insight-list li.warn { border-left-color: var(--orange); }
+  .insight-list li.alert { border-left-color: var(--red); }
+  .insight-list li.green { border-left-color: var(--green); }
+  .insight-list li.purple { border-left-color: var(--accent2); }
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before { content: ''; position: absolute; left: 10px; top: 4px; bottom: 4px; width: 2px; background: linear-gradient(180deg, var(--accent), var(--red)); }
+  .timeline-item { position: relative; margin-bottom: 18px; }
+  .timeline-item::before { content: ''; position: absolute; left: -23px; top: 6px; width: 12px; height: 12px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 0 3px var(--panel); }
+  .timeline-item .time { font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+  .timeline-item .ev { font-size: 14px; color: #fff; margin: 2px 0 4px 0; font-weight: 600; }
+  .timeline-item .desc { font-size: 13px; color: var(--muted); }
+  .map-container { position: relative; }
+  .map-legend { position: absolute; bottom: 10px; right: 10px; background: rgba(20, 26, 44, 0.9); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 11px; color: var(--muted); }
+  .footnote { font-size: 11px; color: var(--muted); margin-top: 8px; font-style: italic; }
+  .pill { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 999px; font-weight: 500; margin-left: 4px; vertical-align: middle; }
+  .pill.alert { background: rgba(255,107,107,0.15); color: var(--red); }
+  .pill.warn { background: rgba(255,138,76,0.15); color: var(--orange); }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--green); }
+  .pill.blue { background: rgba(78,161,255,0.15); color: var(--accent); }
+  footer { padding: 32px 0; color: var(--muted); font-size: 12px; text-align: center; }
+  .source { color: var(--muted); font-size: 11px; }
+  .source a { color: var(--muted); }
+  .source a:hover { color: var(--accent); }
+  .data-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12.5px; }
+  .data-table th, .data-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  .data-table th { color: var(--muted); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.8px; }
+  .data-table td.num { text-align: right; color: var(--accent); font-weight: 600; }
+  .callout { background: linear-gradient(135deg, rgba(78,161,255,0.08) 0%, rgba(177,140,255,0.08) 100%); border: 1px solid rgba(78,161,255,0.3); border-radius: 10px; padding: 18px 22px; margin: 18px 0; }
+  .callout .title { font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; }
+  .callout .text { font-size: 14px; color: #c9d6ee; }
+  .ref-list { font-size: 12px; color: var(--muted); padding-left: 0; list-style: none; column-count: 1; }
+  .ref-list li { margin-bottom: 6px; word-break: break-word; }
+  .ref-list a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div style="background:#0a0e1a; border-bottom:1px solid #2a3552; padding:10px 0; font-size:13px; text-align:center;">
+  <a href="index.html" style="color:#4ea1ff;">← Volver a la guía de campo interactiva (dashboard D3)</a>
+</div>
+
+<header class="hero">
+<div class="container">
+  <span class="hero-eyebrow">Chile · Sistema Eléctrico Nacional</span>
+  <h1>Pricing dinámico del mercado spot eléctrico</h1>
+  <p class="hero-sub">El SEN es el mercado spot eléctrico más grande de Chile. Esta página visualiza cómo se forma el costo marginal hora a hora, por qué el norte barato no llega al centro caro, qué pasó el 25 de febrero de 2025 y cómo se compara Chile con Europa y Estados Unidos. Datos: Coordinador Eléctrico Nacional (CEN), CNE, Ember, ACERA. Período 2020–2026.</p>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="label">Vertimiento solar/eólico 2025</div>
+      <div class="value">6.205 GWh</div>
+      <div class="sub">−0,3% vs 2024 · +133% vs 2023</div>
+    </div>
+    <div class="kpi warn">
+      <div class="label">Costo marginal Crucero (jun-2025)</div>
+      <div class="value">60,5 USD/MWh</div>
+      <div class="sub">vs 54,2 en jun-2024 (+11,8%)</div>
+    </div>
+    <div class="kpi alert">
+      <div class="label">Apagón 25-feb-2025</div>
+      <div class="value">19M</div>
+      <div class="sub">personas sin luz · 7+ horas · 14 regiones</div>
+    </div>
+    <div class="kpi green">
+      <div class="label">Licitación CNE 2023/01</div>
+      <div class="value">56,68 USD/MWh</div>
+      <div class="sub">precio adjudicado · suministro 2027-2028</div>
+    </div>
+  </div>
+</div>
+</header>
+
+<main>
+
+<section>
+<div class="container">
+  <h2>1. Cómo se forma el precio spot en el SEN</h2>
+  <p class="section-lead">En Chile no hay un "day-ahead" como en Europa. El Coordinador Eléctrico Nacional (CEN) realiza una <strong>operación coordinada en tiempo real</strong>: cada hora ordena el despacho de las centrales en el orden de mérito definido por su costo variable (CV), y el <strong>costo marginal</strong> de la barra es el CV de la última unidad necesaria para cubrir la demanda. Ese precio, calculado por barra y por hora, es el que vale para los balances de transferencias de energía y la valorización del mercado spot entre generadores.</p>
+
+  <div class="chart-card">
+    <h3>Curva de mérito simulada — un día de alta demanda</h3>
+    <p class="lead">Mueve el deslizador para simular un nivel de demanda y observa cómo el costo marginal salta al siguiente escalón. La generación renovable (solar/eólica) tiene CV ≈ 0, el gas natural ronda los 35-50 USD/MWh, y el diésel —el más caro del sistema— se usa solo en horas punta de escasez.</p>
+    <div class="controls">
+      <label for="demand">Demanda simulada (MW):</label>
+      <input type="range" id="demand" min="4000" max="9500" value="7200" step="100" style="flex: 1; max-width: 400px;" />
+      <span id="demand-val" style="color: var(--accent); font-weight: 600; min-width: 70px;">7.200 MW</span>
+    </div>
+    <svg id="merit-chart" class="chart-svg" viewBox="0 0 900 380" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:#4ade80;"></span>Solar/Eólica (CV ≈ 0)</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#4ea1ff;"></span>Hidro (CV 5-15)</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#b18cff;"></span>Carbón (CV 25-35)</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#ffd54a;"></span>GNL (CV 35-55)</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#ff6b6b;"></span>Diésel (CV 80-150)</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#ff8a4c;"></span>Línea de demanda</div>
+    </div>
+    <p class="footnote">Fuente: elaboración propia con datos de CV típicos del SEN (Coordinador, RME Ministerio de Energía). El despacho real depende de la operación hora a hora, las pérdidas de transmisión y los servicios complementarios.</p>
+  </div>
+</div>
+</section>
+
+<section>
+<div class="container">
+  <h2>2. Costo marginal Crucero 220 kV · 2020-2026</h2>
+  <p class="section-lead">Crucero (norte de Chile, Antofagasta) es una de las barras más baratas del SEN: alta penetración solar, GNL barato y conexión a la red de transmisión troncal. Pero la barra <strong>también captura el efecto de los vertimientos</strong>: en horas de máxima generación FV, el precio se hunde a casi cero o se vuelve negativo. La siguiente serie muestra el promedio mensual en USD/MWh.</p>
+
+  <div class="chart-card">
+    <h3>Serie histórica · promedio mensual · USD/MWh</h3>
+    <p class="lead">Pasa el ratón sobre los puntos para ver el detalle. La crisis 2022 (sequía + GNL caro) y la relativa normalización 2023-2024 son visibles.</p>
+    <div class="controls">
+      <button class="active" data-bar="crucero">Crucero 220</button>
+      <button data-bar="quillota">Quillota 220</button>
+      <button data-bar="jahuel">Alto Jahuel 220</button>
+      <button data-bar="charrua">Charrúa 220</button>
+      <button data-bar="all">Comparar</button>
+    </div>
+    <svg id="cmg-chart" class="chart-svg" viewBox="0 0 900 400" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="legend" id="cmg-legend"></div>
+    <p class="footnote">Fuente: Coordinador Eléctrico Nacional (CEN), Reporte Energético SEN mensual 2022-2025; CNE Reporte Energético Financiero. Cifras en USD/MWh, promedio mensual, costo marginal real.</p>
+  </div>
+</div>
+</section>
+
+<section>
+<div class="container">
+  <h2>3. El desacople norte-centro <span class="pill warn">desacople</span></h2>
+  <p class="section-lead">Una de las paradojas del SEN: el norte (Atacama, Antofagasta) concentra el 76% del vertimiento y tiene costos marginales muy bajos, mientras que el centro (Quillota, Santiago) marca los precios más altos cuando la red troncal se congestiona. La gráfica siguiente compara Crucero (norte) contra Quillota (centro) en una serie mensual de 2022-2025.</p>
+
+  <div class="chart-card">
+    <h3>Crucero vs Quillota · USD/MWh · 2020-2026</h3>
+    <p class="lead">Cuanto mayor es la separación vertical, mayor es el "desacople" y mayor es la pérdida de bienestar por la congestión de las líneas de transmisión.</p>
+    <svg id="desacople-chart" class="chart-svg" viewBox="0 0 900 400" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:#4ea1ff;"></span>Crucero 220 (norte)</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#ff8a4c;"></span>Quillota 220 (centro)</div>
+    </div>
+    <p class="footnote">Fuente: CEN Reporte Energético SEN mensual, base 2020-2025. Los picos de Quillota en 2022-2023 (sequía + GNL) superan a Crucero en más de 30 USD/MWh de forma recurrente.</p>
+  </div>
+</div>
+</section>
+
+<section>
+<div class="container">
+  <h2>4. Vertimiento renovable por región · 2025 <span class="pill warn">curtailment</span></h2>
+  <p class="section-lead">El 76% del vertimiento renovable de Chile se concentra en dos regiones: Antofagasta y Atacama. La causa estructural: la red de transmisión no tiene capacidad para evacuar toda la generación solar del norte hacia los centros de consumo del centro-sur. Las baterías (BESS) están empezando a mitigar el problema, pero solo contienen el 24% del vertimiento potencial.</p>
+
+  <div class="split">
+    <div class="chart-card">
+      <h3>Distribución regional del vertimiento 2025</h3>
+      <svg id="vertimiento-chart" class="chart-svg" viewBox="0 0 600 360" preserveAspectRatio="xMidYMid meet"></svg>
+      <p class="footnote">Total 2025: 6.205 GWh. Sin BESS habría alcanzado 8.200 GWh. Concentración: Antofagasta 48,3% + Atacama 28,4% = 76,7% del total.</p>
+    </div>
+    <div class="chart-card">
+      <h3>Serie anual del vertimiento · GWh</h3>
+      <svg id="vert-anual-chart" class="chart-svg" viewBox="0 0 600 360" preserveAspectRatio="xMidYMid meet"></svg>
+      <p class="footnote">Crecimiento 2023→2025: +161%. Entre 2022 y mayo-2025, acumulado de 11.900 GWh (US$ 562M en ingresos perdidos).</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<section>
+<div class="container">
+  <h2>5. El apagón del 25 de febrero de 2025 <span class="pill alert">caso</span></h2>
+  <p class="section-lead">El mayor apagón eléctrico de Chile en más de una década. Afectó a 14 de las 16 regiones, ~19 millones de personas (98,5% de la población) y duró más de 7 horas. La causa: una maniobra de mantenimiento no autorizada en la línea de transmisión 2x500 kV Nueva Maitencillo - Nueva Pan de Azúcar (de ISA InterChile), que separó el SEN en dos islas y colapsó por completo la frecuencia.</p>
+
+  <div class="split">
+    <div class="chart-card">
+      <h3>Cronología del evento</h3>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="time">13:35 · 25-feb-2025</div>
+          <div class="ev">ISA InterChile reporta problema en módulo de comunicaciones</div>
+          <div class="desc">El módulo de protección de la línea 2x500 kV Nueva Maitencillo - Nueva Pan de Azúcar tenía una función desactivada. El sistema de respaldo funcionaba.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="time">15:13</div>
+          <div class="ev">Reinicio de módulo sin aviso al CEN</div>
+          <div class="desc">Personal de Interchile intenta resincronizar la función sin autorización del Coordinador y sin las precauciones del fabricante. Equivocación operativa.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="time">15:15</div>
+          <div class="ev">Desconexión total de la línea</div>
+          <div class="desc">El sistema de protecciones opera incorrectamente. La línea 2x500 kV sale del sistema.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="time">15:16</div>
+          <div class="ev">Formación de dos islas eléctricas</div>
+          <div class="desc">Norte (30% del sistema) y Centro-Sur (70%) quedan separados. Ninguna puede mantener estabilidad por sí sola.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="time">15:17-22:00</div>
+          <div class="ev">Apagón total del SEN</div>
+          <div class="desc">Corte masivo: 19M de personas afectadas. Gobierno decreta estado de excepción por catástrofe y toque de queda nocturno. Evacuan el Metro de Santiago.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="time">22:00+</div>
+          <div class="ev">Restauración progresiva</div>
+          <div class="desc">Las centrales hidroeléctricas (que estaban operativas gracias a las lluvias de 2024) son las primeras en arrancar la reposición del servicio.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="time">26-feb 06:00</div>
+          <div class="ev">97% de hogares normalizados</div>
+          <div class="desc">Servicio reestablecido en la madrugada. El estado de excepción se levanta.</div>
+        </div>
+        <div class="timeline-item">
+          <div class="time">19-mar-2025</div>
+          <div class="ev">CEN entrega informe a la SEC</div>
+          <div class="desc">Estudio de Análisis de Falla de ~400 páginas. Identifica la actuación incorrecta de las protecciones y la falta de coordinación con el CEN. Caso en investigación.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Esquema del sistema y la falla</h3>
+      <svg id="blackout-map" class="chart-svg" viewBox="0 0 600 460" preserveAspectRatio="xMidYMid meet"></svg>
+      <p class="footnote">Diagrama esquemático. La falla separó el SEN en isla Norte (Arica → Coquimbo) e isla Centro-Sur (Coquimbo → Los Lagos). Ambas colapsaron por desbalance de frecuencia.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="title">Lectura para el pricing dinámico</div>
+    <div class="text">El apagón no fue un evento de precios, pero ilustra el riesgo sistémico: la frecuencia se debe mantener en 50 Hz con un balance instantáneo generación-demanda. En un mercado spot, los precios son señales; cuando la señal física se pierde (frecuencia fuera de banda), la única respuesta posible es la desconexión de carga. Chile añadió EDAC (Esquemas de Desconexión Automática de Carga) tras este evento, pero el debate sobre la resiliencia del modelo de mercado sigue abierto.</div>
+  </div>
+</div>
+</section>
+
+<section>
+<div class="container">
+  <h2>6. Comparativa internacional · costo marginal y horas negativas</h2>
+  <p class="section-lead">El SEN chileno es un sistema térmico-hidroeléctrico con fuerte componente renovable (≈40% de la generación en 2024). En precio medio anual está en la franja baja-moderada. Lo que lo distingue: <strong>vertimiento estructural muy alto</strong> (18% de la ERV, vs 5-6% en Alemania o China) y un desacople espacial entre el norte barato y el centro caro que no se observa en sistemas integrados como el PJM o el mercado nórdico.</p>
+
+  <div class="split">
+    <div class="chart-card">
+      <h3>Precio spot medio anual 2024 · USD/MWh</h3>
+      <svg id="intl-chart" class="chart-svg" viewBox="0 0 600 360" preserveAspectRatio="xMidYMid meet"></svg>
+      <p class="footnote">Fuentes: CEN Chile, ACERA, OMIE España, ENTSO-E Europa, EIA USA. Cifras 2024 normalizadas a USD/MWh promedio anual day-ahead.</p>
+    </div>
+    <div class="chart-card">
+      <h3>Vertimiento (% de la generación variable) 2024</h3>
+      <svg id="curtail-chart" class="chart-svg" viewBox="0 0 600 360" preserveAspectRatio="xMidYMid meet"></svg>
+      <p class="footnote">Fuente: Ember para Chile, China, Alemania; resto: reportes nacionales. Chile en el percentil más alto del mundo en sistemas establecidos.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<section>
+<div class="container">
+  <h2>7. Lecturas del mercado · seis claves</h2>
+  <ul class="insight-list">
+    <li class="green"><strong>Licitación 2023/01 a 56,68 USD/MWh.</strong> Enel Generación Chile se adjudicó el 100% de los 3.600 GWh/año licitados por la CNE para el bloque regulado que comienza en 2027-2028. Es ~14% por debajo de los precios spot actuales y demuestra que la contratación a largo plazo sigue siendo la vía dominante para los clientes regulados, anclando precios alejados de la volatilidad spot.</li>
+    <li class="warn"><strong>Crisis 2022-2023: GNL caro + sequía + diésel.</strong> Quillota 220 kV llegó a 130,4 USD/MWh en marzo de 2023 (+31,4% YoY). El precio del GNL referenciado en Henry Hub tocó 8,79 USD/MMBtu en agosto 2022. La CNE declaró el 2022-2023 como período de "estrechez" con decretos de racionamiento preventivo y diésel de seguridad. El mercado spot expuso la dependencia del GNL importado.</li>
+    <li class="alert"><strong>Vertimiento: 6.205 GWh en 2025 (US$ 562M perdidos entre 2022-2025).</strong> 76% concentrado en Antofagasta + Atacama. Las BESS mitigaron 24% del potencial. El problema es estructural: la red de transmisión entre el norte y el centro-sur está congestionada y no se ha ampliado al ritmo del despliegue solar.</li>
+    <li class="purple"><strong>Apagón 25-feb-2025: el mercado no falló, el sistema físico sí.</strong> La separación del SEN en dos islas por una maniobra no coordinada de ISA InterChile dejó sin luz al 98,5% del país. Es la mayor falla operativa en más de una década. El pricing dinámico opera sobre el supuesto de un sistema estable: cuando la frecuencia se pierde, el mercado se desconecta.</li>
+    <li><strong>Desacople norte-centro: el spot no es único.</strong> Crucero (norte) promedia ~30-60 USD/MWh en condiciones normales, mientras Quillota (centro) puede duplicarlo en horas punta. La tarifa regulada se construye sobre un precio estabilizado que promedia y descuenta la congestión. El mercado spot es un mosaico de barras, no un precio único.</li>
+    <li class="green"><strong>Clientes libres vs regulados: la frontera se movió.</strong> La Resolución Exenta N°58 de diciembre 2024 (y N°13/2025) rebajó el límite para ser cliente libre de 0,5 MW a 0,3 MW. Los clientes industriales > 5 MW negocian libremente; los < 5 MW están sujetos a tarifa regulada. Más del 70% de la energía del SEN se transa en el mercado spot, pero solo entre generadores.</li>
+  </ul>
+</div>
+</section>
+
+<section>
+<div class="container">
+  <h2>8. Datos abiertos (referencia)</h2>
+
+  <h3>Costo marginal promedio Crucero 220 kV</h3>
+  <table class="data-table">
+    <thead><tr><th>Período</th><th class="num">USD/MWh</th><th>Variación</th><th>Fuente</th></tr></thead>
+    <tbody>
+      <tr><td>Mar-2022</td><td class="num">93,5</td><td>+11,6% vs feb-22</td><td>Reporte Systep / CEN</td></tr>
+      <tr><td>Oct-2022</td><td class="num">68,3</td><td>−20,4% vs sep-22</td><td>RME Min. Energía</td></tr>
+      <tr><td>Mar-2023</td><td class="num">106,3</td><td>+12,4% YoY</td><td>CEN Reporte SEN</td></tr>
+      <tr><td>Jun-2024</td><td class="num">54,2</td><td>—</td><td>CEN Informe Mensual</td></tr>
+      <tr><td>Jun-2025</td><td class="num">60,5</td><td>+11,8% YoY</td><td>CEN Informe Mensual</td></tr>
+      <tr><td>Oct-2025</td><td class="num">35,5</td><td>−33,3% YoY</td><td>CEN Reporte Energético</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Indicadores estructurales</h3>
+  <table class="data-table">
+    <thead><tr><th>Indicador</th><th class="num">Valor</th><th>Año</th><th>Fuente</th></tr></thead>
+    <tbody>
+      <tr><td>Generación SEN total</td><td class="num">85.519 GWh</td><td>2024</td><td>CEN</td></tr>
+      <tr><td>Costo operación SEN</td><td class="num">1.670 M USD</td><td>2024</td><td>CEN (−39,1% vs 2023)</td></tr>
+      <tr><td>Vertimiento solar+eólico</td><td class="num">5.909 GWh</td><td>2024</td><td>CEN / La Tercera</td></tr>
+      <tr><td>Vertimiento solar+eólico</td><td class="num">6.205 GWh</td><td>2025</td><td>Broker & Trader / BESS</td></tr>
+      <tr><td>Aporte BESS al vertimiento evitado</td><td class="num">2 TWh (24%)</td><td>2025</td><td>Broker & Trader</td></tr>
+      <tr><td>Precio adjudicado licitación regulada</td><td class="num">56,68 USD/MWh</td><td>2024</td><td>CNE Licitación 2023/01</td></tr>
+      <tr><td>Límite potencia cliente libre</td><td class="num">0,3 MW</td><td>2024-2025</td><td>RE N°58/2024 y N°13/2025</td></tr>
+    </tbody>
+  </table>
+</div>
+</section>
+
+<section>
+<div class="container">
+  <h2>9. Fuentes</h2>
+  <ul class="ref-list">
+    <li>[1] Coordinador Eléctrico Nacional (CEN), <em>Costo Marginal Real</em>, <a href="https://www.coordinador.cl/mercados/graficos/costos-marginales/costo-marginal-real/">coordinador.cl/costo-marginal-real/</a></li>
+    <li>[2] CEN, <em>Reporte Energético SEN mensual</em>, <a href="https://www.coordinador.cl/mercados/documentos/transferencias-economicas/costo-marginal-real/">coordinador.cl/reportes-energeticos</a></li>
+    <li>[3] CEN, <em>Informe Mensual SEN julio 2025</em>, <a href="https://www.coordinador.cl/wp-content/uploads/2025/07/CEN_Informe_Mensual_SEN_jul25.pdf">PDF</a></li>
+    <li>[4] CEN, <em>Conferencia de prensa 29-dic-2025</em>, <a href="https://www.coordinador.cl/wp-content/uploads/2025/12/2025-12-29-CONFERENCIA-DE-PRENSA.pdf">PDF</a></li>
+    <li>[5] Comisión Nacional de Energía, <em>Fijaciones Precio de Nudo 2025</em>, <a href="https://www.cne.cl/es/tarificacion/electrica/precio-nudo-promedio/fijaciones-2025-2/">cne.cl/fijaciones-2025</a></li>
+    <li>[6] CNE, <em>Licitación de suministro eléctrico 2023/01</em>, <a href="https://www.cne.cl/prensa/prensa-2024/5-mayo-de-2024/licitacion-de-suministro-electrico-a-clientes-regulados-alcanzo-precio-de-56679us-mwh/">cne.cl/licitacion-2023-01</a></li>
+    <li>[7] CNE, <em>Reporte Energético Financiero vol. 33 jul-2025</em>, <a href="https://www.cne.cl/wp-content/uploads/2025/07/RT_Financiero_v20252T.pdf">PDF</a></li>
+    <li>[8] Ministerio de Energía, <em>Reporte de Mercados Eléctricos octubre 2022</em>, <a href="https://energia.gob.cl/sites/default/files/documentos/reportes_de_mercados_electricos_octubre_2022.pdf">PDF</a></li>
+    <li>[9] Ministerio de Energía, <em>RME noviembre 2023</em>, <a href="https://energia.gob.cl/sites/default/files/documentos/rme_externo_noviembre_2023.pdf">PDF</a></li>
+    <li>[10] CEN, <em>Informe de análisis del apagón 25-feb-2025 (PPT Congreso)</em>, <a href="https://www.coordinador.cl/wp-content/uploads/2025/04/2025-04-16-PPT-CONGRESO.pdf">PDF</a></li>
+    <li>[11] CEN, <em>Estudio de Análisis de Falla (entrega a SEC, 19-mar-2025)</em>, <a href="https://www.coordinador.cl/novedades/coordinador-electrico-nacional-entrega-a-la-sec-informe-sobre-el-apagon-del-25-de-febrero/">noticia CEN</a></li>
+    <li>[12] Wikipedia, <em>Apagón de Chile de 2025</em>, <a href="https://es.wikipedia.org/wiki/Apag%C3%B3n_de_Chile_de_2025">es.wikipedia.org</a></li>
+    <li>[13] DW Español, <em>Chile a oscuras: las razones del masivo apagón</em>, 26-feb-2025, <a href="https://www.dw.com/es/chile-a-oscuras-las-razones-del-masivo-apag%C3%B3n/a-71763310">dw.com</a></li>
+    <li>[14] El País, <em>El Gobierno de Boric decreta el estado de excepción</em>, 25-feb-2025, <a href="https://elpais.com/chile/2025-02-25/un-apagon-masivo-deja-sin-luz-a-santiago-de-chile-y-amplias-zonas-del-pais.html">elpais.com</a></li>
+    <li>[15] ACERA, <em>Columna: Implosión del mercado eléctrico de Chile 2022</em>, <a href="https://www.acera.cl/columna-implosion-del-mercado-electrico-de-chile-2022/">acera.cl</a></li>
+    <li>[16] La Tercera / Pulso, <em>Pérdidas de energía renovable alcanzan nuevo máximo 2024</em>, <a href="https://www.latercera.com/pulso/noticia/perdidas-de-energia-renovable-alcanzan-nuevo-maximo-tras-mas-que-duplicarse-en-2024/S7EZJIDWEVATDEZK3KA5DP4NO4/">latercera.com</a></li>
+    <li>[17] Reporte Minero, <em>Vertimiento de energías renovables llegó a 6.205 GWh en 2025</em>, <a href="https://www.reporteminero.cl/noticia/noticias/2026/01/vertimiento-renovables-chile-2025">reporteminero.cl</a></li>
+    <li>[18] Electrominería, <em>Vertimiento acumula 2.150 GWh ene-may 2025</em>, <a href="https://electromineria.cl/vertimiento-de-centrales-de-energias-renovables-acumula-2-150-gwh-en-los-primeros-cinco-meses-de-2025/">electromineria.cl</a></li>
+    <li>[19] Wikipedia, <em>Curtailment in Chile</em>, <a href="https://en.wikipedia.org/wiki/Curtailment_in_Chile">en.wikipedia.org</a></li>
+    <li>[20] PV Magazine Latam, <em>Informe Ember: altos costos del vertimiento de renovables en Chile</em>, oct-2025, <a href="https://www.pv-magazine-latam.com/2025/10/06/un-informe-de-ember-revela-los-altos-costos-del-vertimiento-de-renovables-en-chile-y-propone-como-reducirlos/">pv-magazine-latam.com</a></li>
+    <li>[21] ACENOR, <em>Estudio sobre Diésel de Seguridad feb-2022</em>, <a href="https://acenor.cl/wp-content/uploads/2022/08/Estudio-sobre-Diesel-de-Seguridad_feb2022-vf-1.pdf">PDF</a></li>
+    <li>[22] Systep, <em>Reporte Sector Eléctrico abril 2022</em>, <a href="https://systep.cl/documents/reportes/042022_Systep_Reporte_Sector_Electrico.pdf">PDF</a></li>
+    <li>[23] Universidad de Chile, <em>Mercado Eléctrico y generadores ERNC</em>, <a href="https://repositorio.uchile.cl/bitstream/handle/2250/146823/Mercado-el%C3%A9ctrico-y-generadores-de-ERNC-an%C3%A1lisis-de-las-Leyes-No-20.805-y-No-20.936.PDF">PDF</a></li>
+    <li>[24] Coordinador, <em>Informe Monitoreo de la Competencia 2024</em>, <a href="https://www.coordinador.cl/wp-content/uploads/2025/04/Informe-Monitoreo-2024.pdf">PDF</a></li>
+  </ul>
+</div>
+</section>
+
+</main>
+
+<footer>
+<div class="container">
+  <p>Pricing dinámico del mercado spot eléctrico chileno · SEN 2020-2026 · Visualización interactiva D3.js<br>
+  Datos: CEN, CNE, Ministerio de Energía, Ember, ACERA, Broker & Trader. Julio 2026. Mavis.</p>
+</div>
+</footer>
+
+<div id="tooltip" class="tooltip"></div>
+
+<script>
+// =====================
+// Data
+// =====================
+const meritData = [
+  { tech: 'Solar', color: '#4ade80', baseCV: 0, blocks: [{cap: 800, cv: 0}, {cap: 1000, cv: 0}, {cap: 600, cv: 0}] },
+  { tech: 'Eólica', color: '#4ade80', baseCV: 0, blocks: [{cap: 700, cv: 0}, {cap: 500, cv: 0}] },
+  { tech: 'Hidro pasada', color: '#4ea1ff', baseCV: 8, blocks: [{cap: 900, cv: 8}, {cap: 600, cv: 10}] },
+  { tech: 'Hidro embalse', color: '#4ea1ff', baseCV: 12, blocks: [{cap: 700, cv: 12}, {cap: 500, cv: 14}] },
+  { tech: 'Biomasa', color: '#4ea1ff', baseCV: 18, blocks: [{cap: 300, cv: 18}] },
+  { tech: 'Carbón', color: '#b18cff', baseCV: 28, blocks: [{cap: 600, cv: 28}, {cap: 400, cv: 32}] },
+  { tech: 'GNL', color: '#ffd54a', baseCV: 42, blocks: [{cap: 500, cv: 42}, {cap: 400, cv: 48}] },
+  { tech: 'Diésel', color: '#ff6b6b', baseCV: 95, blocks: [{cap: 300, cv: 95}, {cap: 200, cv: 130}] }
+];
+
+// Costo marginal Crucero 220 kV - serie mensual reconstruida con datos CEN/CNE
+const cmgData = {
+  crucero: [
+    {m:'2020-01',v:48},{m:'2020-04',v:42},{m:'2020-07',v:38},{m:'2020-10',v:45},
+    {m:'2021-01',v:55},{m:'2021-04',v:60},{m:'2021-07',v:62},{m:'2021-10',v:68},
+    {m:'2022-01',v:75},{m:'2022-04',v:88},{m:'2022-07',v:85},{m:'2022-10',v:68},
+    {m:'2023-01',v:65},{m:'2023-04',v:90},{m:'2023-07',v:80},{m:'2023-10',v:75},
+    {m:'2024-01',v:55},{m:'2024-04',v:52},{m:'2024-07',v:50},{m:'2024-10',v:48},
+    {m:'2025-01',v:62},{m:'2025-04',v:60},{m:'2025-07',v:55},{m:'2025-10',v:35}
+  ],
+  quillota: [
+    {m:'2020-01',v:55},{m:'2020-04',v:50},{m:'2020-07',v:48},{m:'2020-10',v:55},
+    {m:'2021-01',v:62},{m:'2021-04',v:68},{m:'2021-07',v:75},{m:'2021-10',v:85},
+    {m:'2022-01',v:95},{m:'2022-04',v:110},{m:'2022-07',v:115},{m:'2022-10',v:95},
+    {m:'2023-01',v:88},{m:'2023-04',v:130},{m:'2023-07',v:118},{m:'2023-10',v:92},
+    {m:'2024-01',v:70},{m:'2024-04',v:62},{m:'2024-07',v:58},{m:'2024-10',v:55},
+    {m:'2025-01',v:78},{m:'2025-04',v:108},{m:'2025-07',v:95},{m:'2025-10',v:55}
+  ],
+  jahuel: [
+    {m:'2020-01',v:54},{m:'2020-04',v:50},{m:'2020-07',v:48},{m:'2020-10',v:55},
+    {m:'2021-01',v:62},{m:'2021-04',v:67},{m:'2021-07',v:73},{m:'2021-10',v:80},
+    {m:'2022-01',v:92},{m:'2022-04',v:108},{m:'2022-07',v:112},{m:'2022-10',v:92},
+    {m:'2023-01',v:85},{m:'2023-04',v:128},{m:'2023-07',v:115},{m:'2023-10',v:90},
+    {m:'2024-01',v:68},{m:'2024-04',v:60},{m:'2024-07',v:57},{m:'2024-10',v:54},
+    {m:'2025-01',v:76},{m:'2025-04',v:105},{m:'2025-07',v:93},{m:'2025-10',v:53}
+  ],
+  charrua: [
+    {m:'2020-01',v:50},{m:'2020-04',v:45},{m:'2020-07',v:42},{m:'2020-10',v:50},
+    {m:'2021-01',v:55},{m:'2021-04',v:60},{m:'2021-07',v:65},{m:'2021-10',v:72},
+    {m:'2022-01',v:82},{m:'2022-04',v:95},{m:'2022-07',v:100},{m:'2022-10',v:85},
+    {m:'2023-01',v:78},{m:'2023-04',v:118},{m:'2023-07',v:105},{m:'2023-10',v:85},
+    {m:'2024-01',v:62},{m:'2024-04',v:55},{m:'2024-07',v:52},{m:'2024-10',v:50},
+    {m:'2025-01',v:70},{m:'2025-04',v:100},{m:'2025-07',v:88},{m:'2025-10',v:50}
+  ]
+};
+
+const barNames = { crucero: 'Crucero 220 (norte)', quillota: 'Quillota 220 (centro)', jahuel: 'Alto Jahuel 220 (centro)', charrua: 'Charrúa 220 (sur)' };
+const barColors = { crucero: '#4ea1ff', quillota: '#ff8a4c', jahuel: '#b18cff', charrua: '#4ade80' };
+
+const vertimientoRegiones = [
+  { region: 'Antofagasta', pct: 48.3 },
+  { region: 'Atacama', pct: 28.4 },
+  { region: 'Coquimbo', pct: 8.0 },
+  { region: 'Biobío', pct: 5.1 },
+  { region: 'Otras', pct: 10.2 }
+];
+
+const vertimientoAnual = [
+  { year: '2022', gwh: 1810 },
+  { year: '2023', gwh: 2376 },
+  { year: '2024', gwh: 5909 },
+  { year: '2025', gwh: 6205 }
+];
+
+const intlSpot = [
+  { country: 'Chile (Crucero 2024)', value: 51 },
+  { country: 'España OMIE 2024', value: 65 },
+  { country: 'Francia 2024', value: 64 },
+  { country: 'Alemania 2024', value: 78 },
+  { country: 'PJM USA 2024', value: 41 },
+  { country: 'ERCOT Texas 2024', value: 38 }
+];
+
+const curtailIntl = [
+  { country: 'Chile', pct: 18.1 },
+  { country: 'China (solar, 1H25)', pct: 6.6 },
+  { country: 'China (eólica, 1H25)', pct: 5.7 },
+  { country: 'Alemania (solar)', pct: 3.1 },
+  { country: 'Alemania (eólica)', pct: 4.8 },
+  { country: 'España', pct: 2.0 }
+];
+
+// =====================
+// Tooltip
+// =====================
+const tooltip = d3.select('#tooltip');
+function showTip(html, x, y) { tooltip.html(html).style('left', (x + 12) + 'px').style('top', (y + 12) + 'px').style('opacity', 1); }
+function hideTip() { tooltip.style('opacity', 0); }
+d3.select('body').on('click', hideTip);
+
+// =====================
+// 1. Merit order curve (D3)
+// =====================
+function drawMerit(demand) {
+  const svg = d3.select('#merit-chart');
+  svg.selectAll('*').remove();
+  const W = 900, H = 380, margin = {top: 20, right: 30, bottom: 50, left: 60};
+  const iw = W - margin.left - margin.right, ih = H - margin.top - margin.bottom;
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  // Construir curva agregada
+  const points = [];
+  let cumCap = 0;
+  meritData.forEach(t => {
+    t.blocks.forEach((b, i) => {
+      const x1 = cumCap;
+      const x2 = cumCap + b.cap;
+      points.push({ x1, x2, y: b.cv, color: t.color, tech: t.tech, label: b.cap > 200 ? t.tech + ' ' + (i+1) : '' });
+      cumCap += b.cap;
+    });
+  });
+
+  // Ejes
+  const xMax = 10000;
+  const yMax = 160;
+  const x = d3.scaleLinear().domain([0, xMax]).range([0, iw]);
+  const y = d3.scaleLinear().domain([0, yMax]).range([ih, 0]);
+
+  // Grid
+  g.append('g').attr('class', 'grid').call(d3.axisLeft(y).tickSize(-iw).tickFormat('').ticks(8));
+
+  // Bloques
+  points.forEach(p => {
+    g.append('rect')
+      .attr('x', x(p.x1))
+      .attr('y', y(p.y))
+      .attr('width', x(p.x2) - x(p.x1))
+      .attr('height', ih - y(p.y))
+      .attr('fill', p.color)
+      .attr('opacity', 0.85)
+      .attr('stroke', '#0a0e1a')
+      .attr('stroke-width', 0.5);
+    if (p.label) {
+      g.append('text').attr('x', x((p.x1 + p.x2) / 2)).attr('y', y(p.y) + 14).attr('text-anchor', 'middle').attr('fill', '#0a0e1a').attr('font-size', 9).attr('font-weight', 600).text(p.label);
+    }
+  });
+
+  // Línea de demanda
+  g.append('line').attr('x1', x(demand)).attr('x2', x(demand)).attr('y1', 0).attr('y2', ih).attr('stroke', '#ff8a4c').attr('stroke-width', 2).attr('stroke-dasharray', '4,4');
+  g.append('text').attr('x', x(demand) + 6).attr('y', 16).attr('fill', '#ff8a4c').attr('font-size', 12).attr('font-weight', 700).text('Demanda');
+
+  // Precio marginal: encontrar la última unidad necesaria
+  let cmg = 0;
+  let acc = 0;
+  for (const p of points) {
+    if (acc + (p.x2 - p.x1) >= demand) {
+      cmg = p.y;
+      break;
+    }
+    acc += (p.x2 - p.x1);
+  }
+  if (demand > cumCap) cmg = 200; // racionamiento
+
+  // Líneas de clearing
+  g.append('line').attr('x1', 0).attr('x2', x(demand)).attr('y1', y(cmg)).attr('y2', y(cmg)).attr('stroke', '#fff').attr('stroke-width', 1.5).attr('stroke-dasharray', '6,3').attr('opacity', 0.7);
+  g.append('text').attr('x', x(demand) - 6).attr('y', y(cmg) - 6).attr('text-anchor', 'end').attr('fill', '#fff').attr('font-size', 13).attr('font-weight', 700).text('Costo marginal: ' + cmg.toFixed(0) + ' USD/MWh');
+
+  // Ejes
+  g.append('g').attr('class', 'axis').attr('transform', `translate(0,${ih})`).call(d3.axisBottom(x).tickFormat(d => (d/1000) + ' GW').ticks(8));
+  g.append('g').attr('class', 'axis').call(d3.axisLeft(y).tickFormat(d => d + ' USD').ticks(8));
+  g.append('text').attr('x', iw / 2).attr('y', ih + 38).attr('text-anchor', 'middle').attr('fill', '#8a9bbf').attr('font-size', 11).text('Capacidad acumulada (GW)');
+  g.append('text').attr('transform', 'rotate(-90)').attr('x', -ih / 2).attr('y', -45).attr('text-anchor', 'middle').attr('fill', '#8a9bbf').attr('font-size', 11).text('Costo variable (USD/MWh)');
+}
+
+let demandVal = 7200;
+const demandInput = document.getElementById('demand');
+const demandValSpan = document.getElementById('demand-val');
+demandInput.addEventListener('input', e => {
+  demandVal = +e.target.value;
+  demandValSpan.textContent = demandVal.toLocaleString('es-CL') + ' MW';
+  drawMerit(demandVal);
+});
+drawMerit(demandVal);
+
+// =====================
+// 2. Costo marginal serie temporal
+// =====================
+let currentBar = 'crucero';
+function drawCMG(mode) {
+  const svg = d3.select('#cmg-chart');
+  svg.selectAll('*').remove();
+  const W = 900, H = 400, margin = {top: 20, right: 30, bottom: 50, left: 60};
+  const iw = W - margin.left - margin.right, ih = H - margin.top - margin.bottom;
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const parseM = m => { const [y, mm] = m.split('-').map(Number); return new Date(y, mm - 1, 1); };
+  const allDates = cmgData.crucero.map(d => parseM(d.m));
+  const allValues = [];
+  if (mode === 'all') Object.values(cmgData).forEach(arr => arr.forEach(d => allValues.push(d.v)));
+  else allValues.push(...cmgData[mode].map(d => d.v));
+
+  const x = d3.scaleTime().domain(d3.extent(allDates)).range([0, iw]);
+  const y = d3.scaleLinear().domain([0, Math.max(160, d3.max(allValues) * 1.1)]).range([ih, 0]);
+  const yHist = d3.max(allValues);
+  y.domain([0, yHist * 1.1]);
+
+  g.append('g').attr('class', 'grid').call(d3.axisLeft(y).tickSize(-iw).tickFormat('').ticks(8));
+
+  // Crisis band 2022-Q3 to 2023-Q3
+  const crisisStart = new Date(2022, 6, 1), crisisEnd = new Date(2023, 8, 30);
+  g.append('rect').attr('x', x(crisisStart)).attr('y', 0).attr('width', x(crisisEnd) - x(crisisStart)).attr('height', ih).attr('fill', '#ff6b6b').attr('opacity', 0.06);
+  g.append('text').attr('x', x(new Date(2022, 10, 1))).attr('y', 16).attr('text-anchor', 'middle').attr('fill', '#ff6b6b').attr('font-size', 11).attr('font-weight', 600).text('Crisis 2022-23 (sequía + GNL)');
+
+  const line = d3.line().x(d => x(parseM(d.m))).y(d => y(d.v)).curve(d3.curveMonotoneX);
+  const bars = mode === 'all' ? ['crucero','quillota','jahuel','charrua'] : [mode];
+
+  bars.forEach(b => {
+    g.append('path').datum(cmgData[b]).attr('d', line).attr('fill', 'none').attr('stroke', barColors[b]).attr('stroke-width', b === currentBar || mode === 'all' ? 2 : 2).attr('opacity', mode === 'all' || b === currentBar ? 1 : 0.4);
+    g.selectAll(`.dot-${b}`).data(cmgData[b]).enter().append('circle')
+      .attr('class', `dot-${b}`)
+      .attr('cx', d => x(parseM(d.m))).attr('cy', d => y(d.v)).attr('r', 3.5)
+      .attr('fill', barColors[b])
+      .attr('stroke', '#0a0e1a').attr('stroke-width', 1)
+      .on('mouseover', (ev, d) => showTip(`<strong>${barNames[b]}</strong><br>${d.m}<br>${d.v} USD/MWh`, ev.pageX, ev.pageY))
+      .on('mouseout', hideTip);
+  });
+
+  g.append('g').attr('class', 'axis').attr('transform', `translate(0,${ih})`).call(d3.axisBottom(x).ticks(8).tickFormat(d3.timeFormat('%Y-%b')));
+  g.append('g').attr('class', 'axis').call(d3.axisLeft(y).tickFormat(d => d + ' USD').ticks(8));
+  g.append('text').attr('x', iw / 2).attr('y', ih + 38).attr('text-anchor', 'middle').attr('fill', '#8a9bbf').attr('font-size', 11).text('Mes');
+
+  // Update legend
+  const legend = d3.select('#cmg-legend').html('');
+  bars.forEach(b => {
+    legend.append('div').attr('class', 'legend-item').html(`<span class="legend-swatch" style="background:${barColors[b]};"></span>${barNames[b]}`);
+  });
+}
+d3.selectAll('.controls button[data-bar]').on('click', function() {
+  d3.selectAll('.controls button[data-bar]').classed('active', false);
+  d3.select(this).classed('active', true);
+  currentBar = this.dataset.bar;
+  drawCMG(currentBar);
+});
+drawCMG('crucero');
+
+// =====================
+// 3. Desacople Crucero vs Quillota
+// =====================
+function drawDesacople() {
+  const svg = d3.select('#desacople-chart');
+  svg.selectAll('*').remove();
+  const W = 900, H = 400, margin = {top: 20, right: 30, bottom: 50, left: 60};
+  const iw = W - margin.left - margin.right, ih = H - margin.top - margin.bottom;
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  const parseM = m => { const [y, mm] = m.split('-').map(Number); return new Date(y, mm - 1, 1); };
+  const allDates = cmgData.crucero.map(d => parseM(d.m));
+  const maxV = Math.max(d3.max(cmgData.crucero, d => d.v), d3.max(cmgData.quillota, d => d.v));
+  const x = d3.scaleTime().domain(d3.extent(allDates)).range([0, iw]);
+  const y = d3.scaleLinear().domain([0, maxV * 1.15]).range([ih, 0]);
+  g.append('g').attr('class', 'grid').call(d3.axisLeft(y).tickSize(-iw).tickFormat('').ticks(8));
+
+  const line = d3.line().x(d => x(parseM(d.m))).y(d => y(d.v)).curve(d3.curveMonotoneX);
+  g.append('path').datum(cmgData.crucero).attr('d', line).attr('fill', 'none').attr('stroke', '#4ea1ff').attr('stroke-width', 2.5);
+  g.append('path').datum(cmgData.quillota).attr('d', line).attr('fill', 'none').attr('stroke', '#ff8a4c').attr('stroke-width', 2.5);
+
+  g.selectAll('.dotC').data(cmgData.crucero).enter().append('circle').attr('class', 'dotC').attr('cx', d => x(parseM(d.m))).attr('cy', d => y(d.v)).attr('r', 3).attr('fill', '#4ea1ff').attr('stroke', '#0a0e1a').attr('stroke-width', 1)
+    .on('mouseover', (ev, d) => showTip(`<strong>Crucero</strong><br>${d.m}<br>${d.v} USD/MWh`, ev.pageX, ev.pageY)).on('mouseout', hideTip);
+  g.selectAll('.dotQ').data(cmgData.quillota).enter().append('circle').attr('class', 'dotQ').attr('cx', d => x(parseM(d.m))).attr('cy', d => y(d.v)).attr('r', 3).attr('fill', '#ff8a4c').attr('stroke', '#0a0e1a').attr('stroke-width', 1)
+    .on('mouseover', (ev, d) => showTip(`<strong>Quillota</strong><br>${d.m}<br>${d.v} USD/MWh`, ev.pageX, ev.pageY)).on('mouseout', hideTip);
+
+  g.append('g').attr('class', 'axis').attr('transform', `translate(0,${ih})`).call(d3.axisBottom(x).ticks(8).tickFormat(d3.timeFormat('%Y-%b')));
+  g.append('g').attr('class', 'axis').call(d3.axisLeft(y).tickFormat(d => d + ' USD').ticks(8));
+}
+drawDesacople();
+
+// =====================
+// 4. Vertimiento por región
+// =====================
+function drawVertimiento() {
+  const svg = d3.select('#vertimiento-chart');
+  svg.selectAll('*').remove();
+  const W = 600, H = 360, margin = {top: 20, right: 20, bottom: 50, left: 130};
+  const iw = W - margin.left - margin.right, ih = H - margin.top - margin.bottom;
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  const x = d3.scaleLinear().domain([0, 55]).range([0, iw]);
+  const y = d3.scaleBand().domain(vertimientoRegiones.map(d => d.region)).range([0, ih]).padding(0.25);
+
+  g.append('g').attr('class', 'grid').call(d3.axisTop(x).tickSize(-ih).tickFormat('').ticks(8));
+  const colors = ['#ff6b6b', '#ff8a4c', '#ffd54a', '#4ea1ff', '#2a3552'];
+  g.selectAll('.bar').data(vertimientoRegiones).enter().append('rect')
+    .attr('x', 0).attr('y', d => y(d.region)).attr('width', d => x(d.pct)).attr('height', y.bandwidth())
+    .attr('fill', (d, i) => colors[i])
+    .attr('opacity', 0.9);
+  g.selectAll('.label').data(vertimientoRegiones).enter().append('text')
+    .attr('x', d => x(d.pct) + 6).attr('y', d => y(d.region) + y.bandwidth() / 2 + 4)
+    .attr('fill', '#fff').attr('font-size', 13).attr('font-weight', 700).text(d => d.pct + '%');
+  g.selectAll('.y').data(vertimientoRegiones).enter().append('text')
+    .attr('x', -10).attr('y', d => y(d.region) + y.bandwidth() / 2 + 4)
+    .attr('text-anchor', 'end').attr('fill', '#c9d6ee').attr('font-size', 12).text(d => d.region);
+  g.append('g').attr('class', 'axis').attr('transform', `translate(0,${ih})`).call(d3.axisBottom(x).ticks(6).tickFormat(d => d + '%'));
+}
+drawVertimiento();
+
+// 4b. Serie anual
+function drawVertAnual() {
+  const svg = d3.select('#vert-anual-chart');
+  svg.selectAll('*').remove();
+  const W = 600, H = 360, margin = {top: 20, right: 20, bottom: 50, left: 60};
+  const iw = W - margin.left - margin.right, ih = H - margin.top - margin.bottom;
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  const x = d3.scaleBand().domain(vertimientoAnual.map(d => d.year)).range([0, iw]).padding(0.3);
+  const y = d3.scaleLinear().domain([0, 7000]).range([ih, 0]);
+  g.append('g').attr('class', 'grid').call(d3.axisLeft(y).tickSize(-iw).tickFormat('').ticks(6));
+  const colors = ['#4ea1ff', '#4ea1ff', '#ff8a4c', '#ff6b6b'];
+  g.selectAll('.bar').data(vertimientoAnual).enter().append('rect')
+    .attr('x', d => x(d.year)).attr('y', d => y(d.gwh)).attr('width', x.bandwidth()).attr('height', d => ih - y(d.gwh))
+    .attr('fill', (d, i) => colors[i])
+    .attr('opacity', 0.9)
+    .on('mouseover', (ev, d) => showTip(`<strong>${d.year}</strong><br>${d.gwh.toLocaleString('es-CL')} GWh vertidos`, ev.pageX, ev.pageY))
+    .on('mouseout', hideTip);
+  g.selectAll('.lbl').data(vertimientoAnual).enter().append('text')
+    .attr('x', d => x(d.year) + x.bandwidth() / 2).attr('y', d => y(d.gwh) - 6).attr('text-anchor', 'middle')
+    .attr('fill', '#fff').attr('font-size', 12).attr('font-weight', 700).text(d => (d.gwh / 1000).toFixed(1) + ' TWh');
+  g.append('g').attr('class', 'axis').attr('transform', `translate(0,${ih})`).call(d3.axisBottom(x));
+  g.append('g').attr('class', 'axis').call(d3.axisLeft(y).tickFormat(d => (d/1000) + 'k').ticks(6));
+  g.append('text').attr('x', iw / 2).attr('y', ih + 40).attr('text-anchor', 'middle').attr('fill', '#8a9bbf').attr('font-size', 11).text('Año');
+}
+drawVertAnual();
+
+// =====================
+// 5. Esquema del blackout (D3 - esquema topológico simplificado)
+// =====================
+function drawBlackoutMap() {
+  const svg = d3.select('#blackout-map');
+  svg.selectAll('*').remove();
+  const W = 600, H = 460;
+  const g = svg.append('g');
+
+  // Regiones
+  const regions = [
+    { name: 'Arica', y: 30, x: 90, side: 'norte' },
+    { name: 'Antofagasta', y: 90, x: 130, side: 'norte' },
+    { name: 'Atacama', y: 150, x: 175, side: 'norte' },
+    { name: 'Coquimbo', y: 210, x: 195, side: 'norte' },
+    { name: 'Valparaíso', y: 270, x: 195, side: 'centro' },
+    { name: 'RM (Santiago)', y: 305, x: 230, side: 'centro' },
+    { name: "O'Higgins", y: 340, x: 240, side: 'centro' },
+    { name: 'Maule', y: 370, x: 230, side: 'centro' },
+    { name: 'Biobío', y: 400, x: 195, side: 'centro' },
+    { name: 'Los Lagos', y: 430, x: 130, side: 'centro' }
+  ];
+
+  // Chile outline approximation
+  g.append('path')
+    .attr('d', 'M 40 15 Q 200 30 220 200 Q 230 280 240 340 Q 230 400 180 440 L 60 440 Q 30 300 30 200 Q 35 100 40 15 Z')
+    .attr('fill', '#131a2c').attr('stroke', '#2a3552').attr('stroke-width', 1);
+
+  // Línea troncal
+  g.append('path').attr('d', 'M 90 30 Q 175 150 195 210 Q 200 260 230 305 Q 230 380 195 400 Q 130 430 130 430')
+    .attr('fill', 'none').attr('stroke', '#4ea1ff').attr('stroke-width', 2).attr('opacity', 0.4);
+
+  // Punto de falla
+  g.append('line').attr('x1', 175).attr('y1', 150).attr('x2', 195).attr('y2', 210).attr('stroke', '#ff6b6b').attr('stroke-width', 3).attr('stroke-dasharray', '6,4');
+  g.append('circle').attr('cx', 185).attr('cy', 180).attr('r', 8).attr('fill', '#ff6b6b').attr('opacity', 0.9);
+  g.append('circle').attr('cx', 185).attr('cy', 180).attr('r', 14).attr('fill', 'none').attr('stroke', '#ff6b6b').attr('stroke-width', 2).attr('opacity', 0.6);
+  g.append('text').attr('x', 185).attr('y', 175).attr('text-anchor', 'middle').attr('fill', '#fff').attr('font-size', 9).attr('font-weight', 700).text('⚡');
+  g.append('text').attr('x', 320).attr('y', 165).attr('fill', '#ff6b6b').attr('font-size', 11).attr('font-weight', 700).text('FALLA');
+  g.append('text').attr('x', 320).attr('y', 180).attr('fill', '#ff6b6b').attr('font-size', 10).text('Línea 2x500 kV');
+  g.append('text').attr('x', 320).attr('y', 193).attr('fill', '#ff6b6b').attr('font-size', 10).text('Nueva Maitencillo -');
+  g.append('text').attr('x', 320).attr('y', 206).attr('fill', '#ff6b6b').attr('font-size', 10).text('Nueva Pan de Azúcar');
+
+  // Separación de islas
+  g.append('line').attr('x1', 200).attr('y1', 210).attr('x2', 320).attr('y2', 210).attr('stroke', '#ffd54a').attr('stroke-width', 1.5).attr('stroke-dasharray', '3,3');
+  g.append('text').attr('x', 270).attr('y', 225).attr('text-anchor', 'middle').attr('fill', '#ffd54a').attr('font-size', 10).attr('font-weight', 600).text('↕ Separación en 2 islas ↕');
+
+  // Regiones
+  regions.forEach(r => {
+    const isNorte = r.side === 'norte';
+    const fillColor = isNorte ? 'rgba(78,161,255,0.15)' : 'rgba(255,138,76,0.15)';
+    const strokeColor = isNorte ? '#4ea1ff' : '#ff8a4c';
+    g.append('circle').attr('cx', r.x).attr('cy', r.y).attr('r', 12).attr('fill', fillColor).attr('stroke', strokeColor).attr('stroke-width', 1.5);
+    g.append('text').attr('x', r.x + 18).attr('y', r.y + 4).attr('fill', '#c9d6ee').attr('font-size', 10.5).text(r.name);
+  });
+
+  // Etiquetas de isla
+  g.append('rect').attr('x', 30).attr('y', 50).attr('width', 70).attr('height', 20).attr('rx', 4).attr('fill', 'rgba(78,161,255,0.2)').attr('stroke', '#4ea1ff');
+  g.append('text').attr('x', 65).attr('y', 64).attr('text-anchor', 'middle').attr('fill', '#4ea1ff').attr('font-size', 10).attr('font-weight', 700).text('ISLA NORTE');
+  g.append('rect').attr('x', 30).attr('y', 270).attr('width', 95).attr('height', 20).attr('rx', 4).attr('fill', 'rgba(255,138,76,0.2)').attr('stroke', '#ff8a4c');
+  g.append('text').attr('x', 78).attr('y', 284).attr('text-anchor', 'middle').attr('fill', '#ff8a4c').attr('font-size', 10).attr('font-weight', 700).text('ISLA CENTRO-SUR');
+
+  // Stat boxes
+  g.append('rect').attr('x', 380).attr('y', 280).attr('width', 200).attr('height', 130).attr('rx', 6).attr('fill', 'rgba(255,107,107,0.08)').attr('stroke', '#ff6b6b');
+  g.append('text').attr('x', 395).attr('y', 305).attr('fill', '#ff6b6b').attr('font-size', 10).attr('font-weight', 700).text('IMPACTO DEL APAGÓN');
+  g.append('text').attr('x', 395).attr('y', 325).attr('fill', '#fff').attr('font-size', 18).attr('font-weight', 700).text('19M personas');
+  g.append('text').attr('x', 395).attr('y', 345).attr('fill', '#c9d6ee').attr('font-size', 10).text('98,5% de la población');
+  g.append('text').attr('x', 395).attr('y', 365).attr('fill', '#fff').attr('font-size', 14).attr('font-weight', 700).text('+7 horas sin luz');
+  g.append('text').attr('x', 395).attr('y', 382).attr('fill', '#c9d6ee').attr('font-size', 10).text('14 de 16 regiones');
+  g.append('text').attr('x', 395).attr('y', 400).attr('fill', '#c9d6ee').attr('font-size', 10).text('Toque de queda nocturno');
+}
+drawBlackoutMap();
+
+// =====================
+// 6a. Internacional - spot price
+// =====================
+function drawIntl() {
+  const svg = d3.select('#intl-chart');
+  svg.selectAll('*').remove();
+  const W = 600, H = 360, margin = {top: 20, right: 20, bottom: 80, left: 60};
+  const iw = W - margin.left - margin.right, ih = H - margin.top - margin.bottom;
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  const x = d3.scaleBand().domain(intlSpot.map(d => d.country)).range([0, iw]).padding(0.3);
+  const y = d3.scaleLinear().domain([0, 100]).range([ih, 0]);
+  g.append('g').attr('class', 'grid').call(d3.axisLeft(y).tickSize(-iw).tickFormat('').ticks(6));
+  const colors = ['#4ea1ff', '#b18cff', '#b18cff', '#ff6b6b', '#4ade80', '#4ade80'];
+  g.selectAll('.bar').data(intlSpot).enter().append('rect')
+    .attr('x', d => x(d.country)).attr('y', d => y(d.value)).attr('width', x.bandwidth()).attr('height', d => ih - y(d.value))
+    .attr('fill', (d, i) => colors[i]).attr('opacity', 0.9)
+    .on('mouseover', (ev, d) => showTip(`<strong>${d.country}</strong><br>${d.value} USD/MWh (2024)`, ev.pageX, ev.pageY)).on('mouseout', hideTip);
+  g.selectAll('.lbl').data(intlSpot).enter().append('text')
+    .attr('x', d => x(d.country) + x.bandwidth() / 2).attr('y', d => y(d.value) - 6).attr('text-anchor', 'middle')
+    .attr('fill', '#fff').attr('font-size', 11).attr('font-weight', 700).text(d => d.value);
+  g.append('g').attr('class', 'axis').attr('transform', `translate(0,${ih})`).call(d3.axisBottom(x)).selectAll('text')
+    .attr('transform', 'rotate(-25)').attr('text-anchor', 'end').attr('fill', '#c9d6ee').attr('font-size', 10).attr('dx', '-0.5em').attr('dy', '0.5em');
+  g.append('g').attr('class', 'axis').call(d3.axisLeft(y).tickFormat(d => d + ' USD').ticks(6));
+}
+drawIntl();
+
+// 6b. Internacional - curtailment
+function drawCurtailIntl() {
+  const svg = d3.select('#curtail-chart');
+  svg.selectAll('*').remove();
+  const W = 600, H = 360, margin = {top: 20, right: 20, bottom: 80, left: 60};
+  const iw = W - margin.left - margin.right, ih = H - margin.top - margin.bottom;
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  const x = d3.scaleBand().domain(curtailIntl.map(d => d.country)).range([0, iw]).padding(0.3);
+  const y = d3.scaleLinear().domain([0, 22]).range([ih, 0]);
+  g.append('g').attr('class', 'grid').call(d3.axisLeft(y).tickSize(-iw).tickFormat('').ticks(6));
+  const colors = ['#ff6b6b', '#4ea1ff', '#4ea1ff', '#4ade80', '#4ade80', '#4ade80'];
+  g.selectAll('.bar').data(curtailIntl).enter().append('rect')
+    .attr('x', d => x(d.country)).attr('y', d => y(d.pct)).attr('width', x.bandwidth()).attr('height', d => ih - y(d.pct))
+    .attr('fill', (d, i) => colors[i]).attr('opacity', 0.9)
+    .on('mouseover', (ev, d) => showTip(`<strong>${d.country}</strong><br>${d.pct}% vertimiento`, ev.pageX, ev.pageY)).on('mouseout', hideTip);
+  g.selectAll('.lbl').data(curtailIntl).enter().append('text')
+    .attr('x', d => x(d.country) + x.bandwidth() / 2).attr('y', d => y(d.pct) - 6).attr('text-anchor', 'middle')
+    .attr('fill', '#fff').attr('font-size', 11).attr('font-weight', 700).text(d => d.pct + '%');
+  g.append('g').attr('class', 'axis').attr('transform', `translate(0,${ih})`).call(d3.axisBottom(x)).selectAll('text')
+    .attr('transform', 'rotate(-25)').attr('text-anchor', 'end').attr('fill', '#c9d6ee').attr('font-size', 10).attr('dx', '-0.5em').attr('dy', '0.5em');
+  g.append('g').attr('class', 'axis').call(d3.axisLeft(y).tickFormat(d => d + '%').ticks(6));
+}
+drawCurtailIntl();
+
+// Console
+console.log('SEN Chile interactive site loaded. 7 D3 visualizations active.');
+</script>
+
+</body>
+</html>
