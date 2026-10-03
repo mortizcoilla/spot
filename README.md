@@ -1,9 +1,9 @@
 # SEN ▸ SPOT — Pricing dinámico del mercado spot eléctrico chileno
 
-Guía de campo interactiva (dashboard D3.js v7) sobre el mercado spot del Sistema
-Eléctrico Nacional de Chile: orden de mérito, costo marginal 2020–2025, desacople
-norte-centro, vertimiento renovable, apagón del 25-feb-2025 y comparativa
-internacional.
+Investigación reproducible + guía de campo interactiva sobre el mercado spot
+del Sistema Eléctrico Nacional de Chile (2020–2026): orden de mérito, costo
+marginal, desacople norte-centro, vertimiento renovable, BESS, cadena
+tarifaria PN/PE, apagón 25-feb-2025 y comparativa internacional.
 
 Diseño editorial "papel milimetrado": fondo crema con retícula, tarjetas con
 esquinas técnicas, tipografías Space Grotesk / Newsreader / JetBrains Mono,
@@ -12,65 +12,50 @@ rojo (diésel/crisis).
 
 ## Contenido
 
-| Archivo | Descripción |
+| Ruta | Descripción |
 |---|---|
-| `index.html` | **Dashboard interactivo** (8 secciones, 7+ visualizaciones D3) |
+| `index.html` | **Guía de campo interactiva** (8 secciones, 7+ visualizaciones D3) |
+| `dashboard/` | **Dashboard de investigación**: resultados del modelo estructural (9 visualizaciones D3) |
+| `informe/informe_tesis.md` | **Informe tipo tesis** con marco regulatorio, metodología, resultados y auditoría |
+| `notebook/` | Notebook ejecutable + ejecutado con los modelos M1–M6 y 7 figuras |
+| `src/pipeline.py` | Fuente única de los modelos (despacho, 2 zonas, BESS, cadena PN/PE, riesgo) |
+| `src/build_notebook.py` | Genera y ejecuta el notebook |
+| `estudio-academico-pricing-dinamico-sen-chile.md` | Estudio académico de 10 partes (auditado; ver AUDITORIA.md) |
+| `AUDITORIA.md` | Auditoría técnica completa (guía + estudio + modelo) |
 | `informe.html` | Versión informe anterior (tema oscuro, archivo) |
-| `estudio-academico-pricing-dinamico-sen-chile.md` | Estudio académico de 10 partes (fuentes, glosario, autoevaluación) |
-| `cd540654-…pdf` | Documento fuente original (PDF) |
-| `AUDITORIA.md` | Auditoría técnica del dashboard: errores encontrados y corregidos |
 
-## Secciones del dashboard
+## El modelo en una línea
 
-- **§ 00 · Orden de mérito** — arrastra la demanda (o simula un ciclo diario) y
-  observa cómo el costo marginal salta de escalón; incluye vertimiento implícito
-  cuando la demanda no alcanza a ocupar la renovable y costo de racionamiento
-  (650,6 USD/MWh, CNE jun-2025) sobre el techo simulado de 9.000 MW.
-- **§ 01 · Costo marginal 2020–2025** — serie por barra troncal (Crucero,
-  Quillota, Alto Jahuel, Charrúa) con zoom (rueda), paneo (arrastre) y
-  crosshair; curva de pato verano/invierno; cadena de precios cMg → spot →
-  PN → PE → tarifa.
-- **§ 02 · Desacople norte-centro** — Crucero vs Quillota con spread de
-  congestión por mes; contexto HVDC Kimal–Lo Aguirre.
-- **§ 03 · Vertimiento** — dona regional y escalera anual 2022–2025 con
-  contrafactual sin BESS (6.205 GWh vertidos en 2025; 8.200 GWh potenciales).
-- **§ 04 · Apagón 25-feb-2025** — cronología de 8 pasos (teclado ←/→/N/P) sobre
-  esquema topológico animado del SEN.
-- **§ 05 · Comparativa internacional** — precio spot medio 2024 y vertimiento
-  ERV vs Alemania, España, China, PJM, ERCOT.
-- **§ 06 · Claves** — seis síntesis para leer el spot.
-- **§ 07 · Apéndice** — tabla de costo marginal, indicadores estructurales y 24
-  referencias.
+Demanda y ERV sintéticas horarias (no gaussianas, semilla 2026) → orden de
+mérito térmico-hidro → **dos zonas con límite de interconexión** (norte
+exportador / centro importador) → spread de congestión y vertimiento
+endógenos → BESS (arbitraje 4 h) → cadena tarifaria PN→PE (DS 88/2020) →
+VaR/CVaR y escenarios (HVDC Kimal–Lo Aguirre, CV del GNL). Calibrado contra
+anclas CEN/CNE/Ember/B&T: la crisis 2022 queda a **+0,8%** del precio medio
+documentado.
 
-## Uso local
-
-100% estático, sin build. Servir por HTTP (D3 por CDN):
+## Reproducir
 
 ```bash
-python -m http.server 8000
-# abrir http://localhost:8000
+python src/pipeline.py        # modelos + dashboard/js/data.js + tabla_metricas.csv
+python src/build_notebook.py  # notebook ejecutado con 7 figuras
+python -m http.server 8000    # guía en / · investigación en /dashboard/
 ```
 
 ## Despliegue (Vercel)
 
-El `vercel.json` raíz ya define clean URLs y cabeceras de seguridad. Desde la
-raíz del repo:
-
-```bash
-npx vercel --prod
-```
-
-o importar el repositorio en vercel.com con Framework Preset **Other** (sin
-build command, sin output directory).
+`vercel.json` raíz ya define clean URLs y cabeceras. `npx vercel --prod`
+desde la raíz, o importar el repo con Framework Preset **Other**. La guía
+queda en `/` y la investigación en `/dashboard/`.
 
 ## Datos y fuentes
 
 Series y cifras: CEN (Costo Marginal Real, Reporte Energético SEN), CNE
-(fijaciones de precio de nudo, licitación 2023/01, costo de racionamiento),
-Ministerio de Energía (RME), Ember, ACERA, Broker & Trader Energy, Systep.
-Los promedios usan los meses reportados (ene/abr/jul/oct) y el perfil horario
-de la curva de pato es sintético calibrado; las limitaciones están documentadas
-en el propio dashboard y en el estudio académico.
+(fijaciones de precio de nudo, licitación 2023/01, costo de racionamiento
+650,6 USD/MWh), Ministerio de Energía (RME), Ember (vertimiento), ACERA,
+Broker & Trader, Systep. Los promedios usan meses reportados (ene/abr/jul/oct)
+y los perfiles horarios son sintéticos calibrados; las limitaciones están
+documentadas en el dashboard y en `informe/informe_tesis.md` §6.
 
 ## Autor
 

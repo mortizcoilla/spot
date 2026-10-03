@@ -1,8 +1,56 @@
-# Auditoría técnica — SEN ▸ SPOT (dashboard `index.html`)
+# Auditoría técnica — SEN ▸ SPOT
 
-Auditoría de código y de dominio (mercado eléctrico chileno) sobre la guía de
-campo interactiva, previa a su publicación. Cada hallazgo indica severidad,
-diagnóstico y corrección aplicada.
+Auditoría de código y de dominio (mercado eléctrico chileno). Parte 1: la guía
+de campo interactiva (`index.html`). Parte 2: la investigación reproducible
+(modelo estructural, notebook, dashboard de resultados, informe).
+
+## Parte 2 · Investigación (v2, oct-2026)
+
+### Errores del estudio académico de origen (corregidos en los artefactos)
+
+- **E1 · Aritmética del vertimiento.** "2025: 6.205 GWh (−0,3% vs 2024)" es
+  incorrecto: 6.205/5.909 = **+5,0%** (y vs 2023 es +161%, no +133%).
+- **E2 · Duplicado tipográfico.** "embalses… Pangue, Ralco, Pangue" (§3.4).
+- **E3 · Doble estándar del saldo de estabilización.** "USD 2.000 M" (§2.3)
+  vs "USD 2.500 M" (§4.3). Se adopta ">2.000 M (2023)" como ancla.
+- **E4 · "Más de 6.000 PMGD"** (§4.5): probablemente agrega instalaciones
+  netbilling; la PMGD estricta es menor. Solo la capacidad (2–3 GW) entra al
+  modelo.
+- **E5 · Contradicción conceptual en la guía derivada.** "70% se transa en el
+  spot" contradice el propio estudio (">70% se contrata a plazo"); corregida.
+
+### Errores del modelo estructural, detectados y corregidos durante el desarrollo
+
+- **E6 · Doble conteo de ERV (crítico, v1).** El stack de precios incluía
+  solar/eólica en la base mientras la demanda neta ya las descontaba → el
+  precio colapsaba a ~0. Corregido: el stack de fijación de precios es solo
+  térmico-hidro; la ERV entra por la demanda neta (mecanismo documentado en el
+  estudio §4.5).
+- **E7 · Flujo de interconexión unidireccional (crítico, v1).** Solo se
+  modelaba la exportación norte→centro: en horas de déficit norte, el norte
+  quedaba preciado POR ENCIMA del centro (invertido vs la realidad
+  Crucero ≤ Quillota). Corregido: flujo bidireccional (importación capada por L).
+- **E8 · Piso SSCC asimétrico.** En horas de excedente sistémico donde todo el
+  derrame se asignaba al norte, el norte recibía el piso (8) y el centro 0 →
+  26 meses con media invertida. Corregido: el piso aplica a ambas zonas en
+  horas de excedente.
+- **E9 · RNG no determinista por escenario (v1).** Cada corrida consumía ruido
+  nuevo → HVDC/BESS/GNL se comparaban contra ruido distinto. Corregido: RNG
+  por año (seed 2026·100+año); los contrafactuales comparten ruido base.
+- **E10 · Artefacto aceptado.** 49 h/año (0,09%) de "congestión inversa"
+  (déficit norte > L) dejan al norte ≤4,3 USD/MWh sobre el centro en media
+  mensual. Físicamente interpretable; documentado en el informe §6.
+
+### Honestidad de calibración
+
+- Crisis 2022: **+0,8%** de error en precio medio (104,9 vs 104 doc).
+- Sesgo negativo post-2024 (−35% a −47%) declarado y explicado: sin primas
+  SSCC en estrés, sin unit commitment, sin restricciones de red locales.
+- Vertimiento: patrón y orden de magnitud correctos; nivel 2024-25 subestimado
+  (~−10% en potencial 2025: 7.352 vs 8.200 GWh).
+- Spread medio en congestión dentro del rango documentado (5–15 USD/MWh).
+
+## Parte 1 · Guía de campo interactiva (v1)
 
 ## Errores corregidos
 
